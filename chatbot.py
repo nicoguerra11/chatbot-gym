@@ -1,4 +1,5 @@
 import os
+import base64
 import streamlit as st
 from dotenv import load_dotenv
 from groq import Groq
@@ -14,22 +15,52 @@ st.set_page_config(
     layout="centered"
 )
 
-CSS = """
+# ── Imagen de fondo ────────────────────────────────────────────────────────────
+@st.cache_data
+def load_bg_image():
+    for fname in ["gym_bg.jpg", "gym_bg.jpeg", "gym_bg.png"]:
+        if os.path.exists(fname):
+            with open(fname, "rb") as f:
+                data = base64.b64encode(f.read()).decode()
+            ext = "jpeg" if fname.endswith((".jpg", ".jpeg")) else "png"
+            return f"data:image/{ext};base64,{data}"
+    return None
+
+bg_src = load_bg_image()
+
+if bg_src:
+    bg_css = f"""
+    .stApp {{
+        background-image:
+            linear-gradient(rgba(0,0,0,0.78), rgba(0,0,0,0.78)),
+            url('{bg_src}');
+        background-size: cover;
+        background-position: center top;
+        background-attachment: fixed;
+    }}
+    """
+else:
+    bg_css = """
+    .stApp {
+        background-color: #0f0f0f;
+        background-image:
+            radial-gradient(circle at 50% 0%, rgba(255,107,0,0.06) 0%, transparent 55%),
+            radial-gradient(circle, rgba(255,107,0,0.055) 1px, transparent 1px);
+        background-size: cover, 28px 28px;
+        background-attachment: fixed;
+    }
+    """
+
+# Inyectar el fondo primero (separado porque tiene f-string)
+st.markdown(f"<style>{bg_css}</style>", unsafe_allow_html=True)
+
+# ── CSS estático ───────────────────────────────────────────────────────────────
+st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap');
 
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
-}
-
-/* Fondo con grilla de puntos */
-.stApp {
-    background-color: #0f0f0f;
-    background-image:
-        radial-gradient(circle at 50% 0%, rgba(255,107,0,0.06) 0%, transparent 55%),
-        radial-gradient(circle, rgba(255,107,0,0.055) 1px, transparent 1px);
-    background-size: cover, 28px 28px;
-    background-attachment: fixed;
 }
 
 #MainMenu, footer, header { visibility: hidden; }
@@ -47,7 +78,7 @@ html, body, [class*="css"] {
     border-radius: 20px;
     padding: 36px 40px 28px;
     margin-bottom: 14px;
-    box-shadow: 0 16px 48px rgba(255,107,0,0.3), 0 1px 0 rgba(255,255,255,0.12) inset;
+    box-shadow: 0 16px 48px rgba(255,107,0,0.35), 0 1px 0 rgba(255,255,255,0.12) inset;
 }
 .gym-header::before {
     content: '';
@@ -129,35 +160,39 @@ html, body, [class*="css"] {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.09);
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.12);
     border-radius: 10px;
     padding: 8px 16px;
-    color: rgba(255,255,255,0.6);
+    color: rgba(255,255,255,0.7);
     font-family: 'Inter', sans-serif;
     font-size: 0.8rem;
     font-weight: 500;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, color 0.2s;
 }
 .info-chip:hover {
-    border-color: rgba(255,107,0,0.25);
-    color: rgba(255,255,255,0.8);
+    border-color: rgba(255,107,0,0.35);
+    color: rgba(255,255,255,0.9);
 }
 .chip-icon { color: #ff6b00; flex-shrink: 0; }
 
-/* ── Mensajes de chat ── */
+/* ── Mensajes — glass morphism ── */
 [data-testid="stChatMessage"] {
-    background: rgba(255,255,255,0.03) !important;
-    border: 1px solid rgba(255,255,255,0.07) !important;
+    background: rgba(0,0,0,0.52) !important;
+    backdrop-filter: blur(14px) !important;
+    -webkit-backdrop-filter: blur(14px) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
     border-radius: 14px !important;
     margin-bottom: 8px !important;
     transition: border-color 0.25s;
 }
 [data-testid="stChatMessage"]:hover {
-    border-color: rgba(255,107,0,0.16) !important;
+    border-color: rgba(255,107,0,0.22) !important;
 }
 
-/* Avatar más pequeño y limpio */
+/* Avatar más pequeño */
 [data-testid="stChatMessageAvatar"] {
     width: 30px !important;
     height: 30px !important;
@@ -171,7 +206,7 @@ html, body, [class*="css"] {
     height: 30px !important;
     font-size: 15px !important;
     border-radius: 8px !important;
-    background: rgba(255,107,0,0.15) !important;
+    background: rgba(255,107,0,0.18) !important;
 }
 
 /* ── Botones de consulta rápida ── */
@@ -181,12 +216,14 @@ html, body, [class*="css"] {
     font-weight: 700;
     letter-spacing: 2.5px;
     text-transform: uppercase;
-    color: rgba(255,255,255,0.22);
+    color: rgba(255,255,255,0.28);
     margin: 4px 0 10px;
 }
 .stButton > button {
-    background: rgba(255,107,0,0.08) !important;
-    border: 1px solid rgba(255,107,0,0.22) !important;
+    background: rgba(0,0,0,0.48) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255,107,0,0.3) !important;
     border-radius: 20px !important;
     color: #ff8c00 !important;
     font-family: 'Inter', sans-serif !important;
@@ -198,37 +235,39 @@ html, body, [class*="css"] {
     transition: all 0.2s !important;
 }
 .stButton > button:hover {
-    background: rgba(255,107,0,0.16) !important;
-    border-color: rgba(255,107,0,0.4) !important;
+    background: rgba(255,107,0,0.15) !important;
+    border-color: rgba(255,107,0,0.55) !important;
     transform: translateY(-1px) !important;
-    box-shadow: 0 4px 14px rgba(255,107,0,0.18) !important;
+    box-shadow: 0 4px 16px rgba(255,107,0,0.22) !important;
 }
 .stButton > button:active {
     transform: translateY(0) !important;
 }
 
-/* Spinner en naranja */
-.stSpinner > div {
-    border-top-color: #ff6b00 !important;
+/* Chat input */
+[data-testid="stChatInputContainer"] {
+    background: rgba(0,0,0,0.52) !important;
+    backdrop-filter: blur(14px) !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
 }
 
 /* ── Footer ── */
 .gym-footer {
     text-align: center;
-    color: rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.2);
     font-family: 'Inter', sans-serif;
     font-size: 0.67rem;
     letter-spacing: 2.5px;
     text-transform: uppercase;
     margin-top: 32px;
     padding-top: 16px;
-    border-top: 1px solid rgba(255,255,255,0.05);
+    border-top: 1px solid rgba(255,255,255,0.06);
 }
 </style>
-"""
+""", unsafe_allow_html=True)
 
-st.markdown(CSS, unsafe_allow_html=True)
-
+# ── Header ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="gym-header">
     <div class="gym-name">Gimnasio Fuerza Total</div>
@@ -273,6 +312,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+# ── Backend ───────────────────────────────────────────────────────────────────
 @st.cache_resource
 def cargar_sistema():
     with open("datos_gimnasio.txt", "r", encoding="utf-8") as f:
@@ -312,6 +352,7 @@ Si no sabés la respuesta, invitá a contactar por WhatsApp al 099 123 456."""
     return respuesta.choices[0].message.content
 
 
+# ── Estado ────────────────────────────────────────────────────────────────────
 if "mensajes" not in st.session_state:
     st.session_state.mensajes = [
         {
@@ -320,34 +361,42 @@ if "mensajes" not in st.session_state:
         }
     ]
 
+# Flag para mostrar botones de acceso rápido solo antes de la primera consulta
+if "show_quick" not in st.session_state:
+    st.session_state.show_quick = True
+
+# ── Chat ──────────────────────────────────────────────────────────────────────
 for msg in st.session_state.mensajes:
     with st.chat_message(msg["rol"]):
         st.markdown(msg["texto"])
 
-# Consultas frecuentes (solo al inicio)
+# Botones de consulta rápida
 pregunta_rapida = None
-if len(st.session_state.mensajes) == 1:
+if st.session_state.show_quick:
     st.markdown('<div class="quick-label">Consultas frecuentes</div>', unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         if st.button("Horarios"):
+            st.session_state.show_quick = False
             pregunta_rapida = "¿Cuáles son los horarios?"
     with col2:
         if st.button("Precios"):
+            st.session_state.show_quick = False
             pregunta_rapida = "¿Cuáles son los precios?"
     with col3:
         if st.button("Clases"):
+            st.session_state.show_quick = False
             pregunta_rapida = "¿Qué clases tienen?"
     with col4:
         if st.button("Ubicación"):
+            st.session_state.show_quick = False
             pregunta_rapida = "¿Dónde están ubicados?"
 
 pregunta_texto = st.chat_input("Escribí tu consulta...")
 pregunta = pregunta_rapida or pregunta_texto
 
 if pregunta:
-    with st.chat_message("user"):
-        st.markdown(pregunta)
+    st.session_state.show_quick = False
     st.session_state.mensajes.append({"rol": "user", "texto": pregunta})
 
     with st.spinner(""):
@@ -355,9 +404,8 @@ if pregunta:
         contexto = buscar_contexto(pregunta, modelo, fragmentos, embeddings)
         respuesta = responder(pregunta, contexto)
 
-    with st.chat_message("assistant"):
-        st.markdown(respuesta)
     st.session_state.mensajes.append({"rol": "assistant", "texto": respuesta})
+    st.rerun()
 
 st.markdown("""
 <div class="gym-footer">
