@@ -2,4 +2,4 @@ streamlit
 groq
 python-dotenv
 sentence-transformers
-chromadb==0.4.24
+numpy

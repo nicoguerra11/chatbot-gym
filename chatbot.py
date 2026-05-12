@@ -2,21 +2,19 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 from groq import Groq
-import chromadb
 from sentence_transformers import SentenceTransformer
+import numpy as np
 
 # Cargar API key
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Configuración de la página
 st.set_page_config(
     page_title="Fuerza Total - Asistente Virtual",
     page_icon="💪",
     layout="centered"
 )
 
-# CSS personalizado
 st.markdown("""
 <style>
     .stApp {
@@ -35,7 +33,6 @@ st.markdown("""
         font-size: 2rem;
         font-weight: 800;
         margin: 0;
-        letter-spacing: -0.5px;
     }
     .header-container p {
         color: rgba(255,255,255,0.85);
@@ -64,23 +61,6 @@ st.markdown("""
         border: 1px solid rgba(255,255,255,0.08) !important;
         margin-bottom: 8px !important;
     }
-    .stChatInput textarea {
-        background: rgba(255,255,255,0.06) !important;
-        border: 1px solid rgba(255,107,0,0.3) !important;
-        border-radius: 12px !important;
-        color: white !important;
-    }
-    .stChatInput textarea:focus {
-        border-color: #ff6b00 !important;
-        box-shadow: 0 0 0 2px rgba(255,107,0,0.2) !important;
-    }
-    .sugerencias {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        margin-bottom: 20px;
-        justify-content: center;
-    }
     .footer {
         text-align: center;
         color: rgba(255,255,255,0.3);
@@ -94,7 +74,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Header
 st.markdown("""
 <div class="header-container">
     <h1>💪 Gimnasio Fuerza Total</h1>
@@ -102,7 +81,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Badges
 st.markdown("""
 <div class="badges">
     <span class="badge">🕐 Lun-Vie 6:00 - 22:00</span>
@@ -116,32 +94,17 @@ def cargar_sistema():
     with open("datos_gimnasio.txt", "r", encoding="utf-8") as f:
         texto = f.read()
 
-    fragmentos = []
-    parrafos = texto.split("\n\n")
-    for p in parrafos:
-        if p.strip():
-            fragmentos.append(p.strip())
-
+    fragmentos = [p.strip() for p in texto.split("\n\n") if p.strip()]
     modelo = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-    embeddings = modelo.encode(fragmentos).tolist()
+    embeddings = modelo.encode(fragmentos)
+    return modelo, fragmentos, embeddings
 
-    cliente = chromadb.Client()
-    coleccion = cliente.get_or_create_collection("gimnasio")
-    
-    # Solo agregar si está vacía
-    if coleccion.count() == 0:
-        coleccion.add(
-            documents=fragmentos,
-            embeddings=embeddings,
-            ids=[f"doc{i}" for i in range(len(fragmentos))]
-        )
-
-    return modelo, coleccion
-
-def buscar_contexto(pregunta, modelo, coleccion):
-    embedding_pregunta = modelo.encode([pregunta]).tolist()
-    resultados = coleccion.query(query_embeddings=embedding_pregunta, n_results=3)
-    return "\n".join(resultados["documents"][0])
+def buscar_contexto(pregunta, modelo, fragmentos, embeddings):
+    emb_pregunta = modelo.encode([pregunta])
+    # Similitud coseno manual
+    similitudes = np.dot(embeddings, emb_pregunta.T).flatten()
+    top3 = np.argsort(similitudes)[-3:][::-1]
+    return "\n".join([fragmentos[i] for i in top3])
 
 def responder(pregunta, contexto):
     cliente = Groq(api_key=GROQ_API_KEY)
@@ -164,7 +127,6 @@ Si no sabés la respuesta, invitá a contactar por WhatsApp al 099 123 456."""
     )
     return respuesta.choices[0].message.content
 
-# Historial
 if "mensajes" not in st.session_state:
     st.session_state.mensajes = []
     st.session_state.mensajes.append({
@@ -172,10 +134,9 @@ if "mensajes" not in st.session_state:
         "texto": "¡Hola! 👋 Soy el asistente virtual de **Fuerza Total**. Puedo ayudarte con información sobre horarios, precios, clases y más. ¿En qué te puedo ayudar?"
     })
 
-# Sugerencias rápidas
 if len(st.session_state.mensajes) == 1:
     st.markdown("""
-    <div class="sugerencias">
+    <div class="badges">
         <span class="badge">🕐 Horarios</span>
         <span class="badge">💰 Precios</span>
         <span class="badge">🏋️ Clases</span>
@@ -183,12 +144,10 @@ if len(st.session_state.mensajes) == 1:
     </div>
     """, unsafe_allow_html=True)
 
-# Mostrar historial
 for msg in st.session_state.mensajes:
     with st.chat_message(msg["rol"]):
         st.markdown(msg["texto"])
 
-# Input
 pregunta = st.chat_input("Escribí tu consulta...")
 
 if pregunta:
@@ -197,15 +156,14 @@ if pregunta:
     st.session_state.mensajes.append({"rol": "user", "texto": pregunta})
 
     with st.spinner("Pensando..."):
-        modelo, coleccion = cargar_sistema()
-        contexto = buscar_contexto(pregunta, modelo, coleccion)
+        modelo, fragmentos, embeddings = cargar_sistema()
+        contexto = buscar_contexto(pregunta, modelo, fragmentos, embeddings)
         respuesta = responder(pregunta, contexto)
 
     with st.chat_message("assistant"):
         st.markdown(respuesta)
     st.session_state.mensajes.append({"rol": "assistant", "texto": respuesta})
 
-# Footer
 st.markdown("""
 <div class="footer">
     Powered by IA · Gimnasio Fuerza Total © 2025
